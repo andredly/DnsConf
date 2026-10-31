@@ -43,6 +43,8 @@
 
 [Настройка донора DNS](#dns-донор)
 
+[Настройка проверки доступности (опционально)](#настройка-проверки-доступности-опционально)
+
 [Настройка сразу нескольких профилей](#настройка-сразу-нескольких-профилей)
 
 [GitHub Actions](#настройка-github-actions)
@@ -202,6 +204,23 @@ https://raw.githubusercontent.com/Internet-Helper/GeoHideDNS/refs/heads/main/hos
 
 ---
 
+## Настройка проверки доступности (опционально)
+
+Для **NextDNS** IP-адреса редиректов можно проверять по публичной status-странице. Укажите **переменную окружения**
+`HEALTH_CHECK_URL`, например:
+
+    https://status.dns.geohide.ru/ru/index.json
+
+Если `HEALTH_CHECK_URL` задан, скрипт сохраняет текущий IP домена, пока его статус не `downtime`.
+Текущий IP со статусом `downtime` заменяется на первый IP из источников, статус которого не `downtime`.
+Если все кандидаты недоступны, текущая запись сохраняется, а в лог выводится предупреждение.
+
+Если status-страница недоступна или статус неизвестен, IP считается `UNKNOWN`, и текущая настройка сохраняется.
+Если `HEALTH_CHECK_URL` не задан, используется старое поведение: применяется первый IP из источников.
+Настройка влияет только на **NextDNS**.
+
+---
+
 ## Настройка сразу нескольких профилей
 
 ### Ограничения
@@ -261,6 +280,9 @@ https://raw.githubusercontent.com/Internet-Helper/GeoHideDNS/refs/heads/main/hos
 Для `REDIRECT`:
 
 + Существующий домен будет обновлён, если IP редиректа изменился
++ Если `HEALTH_CHECK_URL` задан, живой текущий IP сохраняется, даже если в источниках первым указан другой IP
++ Если `HEALTH_CHECK_URL` задан, текущий IP со статусом `downtime` заменяется на первый живой IP из источников
++ Если все IP-кандидаты недоступны, существующая запись сохраняется
 + Новые домены будут добавлены к существующим
 + Остальные настройки редиректов останутся без изменений
 
@@ -285,10 +307,11 @@ https://www.youtube.com/watch?v=vbAXM_xAL5I
 2) Перейдите в _Settings_ → _Environments_
 3) Создайте _New environment_ с именем `DNS`
 4) Добавьте `AUTH_SECRET` и `CLIENT_ID` в **Environment secrets**
-5) Добавьте `DNS`, `REDIRECT`, `BLOCK` и `EXCLUDE_REDIRECT` в **Environment variables**
+5) Добавьте `DNS`, `REDIRECT`, `BLOCK`, `EXCLUDE_REDIRECT` и, опционально, `HEALTH_CHECK_URL` в
+   **Environment variables**
 
-+ **Action** запускается ежедневно в **01:30 UTC** (04:30 по МСК).  
-  Чтобы изменить время, отредактируйте cron в `.github/workflows/github_action.yml`
++ **Action** запускается каждый час.  
+  Чтобы изменить расписание, отредактируйте cron в `.github/workflows/github_action.yml`
 + **Action** можно запустить вручную через кнопку **Run workflow**:  
   вкладка _Actions_ → workflow **DNS Block&Redirect Configurer cron task**
 
