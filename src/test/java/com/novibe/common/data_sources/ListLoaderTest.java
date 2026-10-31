@@ -48,6 +48,10 @@ class ListLoaderTest {
     @InjectMocks
     private HostsOverrideListsLoader loader;
 
+    @Spy
+    @InjectMocks
+    private HostsBlockListsLoader blockLoader;
+
     @Test
     void loadsRoutesFromRespondingSource() throws IOException, InterruptedException {
         doReturn(response(200, HOSTS_BODY, HOSTS_URL)).when(httpClient).send(any(), any());
@@ -56,6 +60,50 @@ class ListLoaderTest {
 
         assertEquals(List.of("chatgpt.com", "openai.com"), routes.stream().map(BypassRoute::website).toList());
         verify(httpClient, times(1)).send(any(), any());
+    }
+
+    @Test
+    void keepsAllIpsForSameDomainInSourceOrder() throws IOException, InterruptedException {
+        doReturn(response(200, """
+                1.2.3.4 chatgpt.com
+                5.6.7.8 chatgpt.com
+                9.10.11.12 openai.com
+                """, HOSTS_URL)).when(httpClient).send(any(), any());
+
+        List<BypassRoute> routes = loader.fetchWebsites(List.of(HOSTS_URL));
+
+        assertEquals(List.of("1.2.3.4", "5.6.7.8", "9.10.11.12"), routes.stream().map(BypassRoute::ip).toList());
+        assertEquals(3, routes.size());
+    }
+
+    @Test
+    void doesNotDuplicateSameIpAndDomainPair() throws IOException, InterruptedException {
+        doReturn(response(200, """
+                1.2.3.4 chatgpt.com
+                1.2.3.4 chatgpt.com
+                5.6.7.8 chatgpt.com
+                """, HOSTS_URL)).when(httpClient).send(any(), any());
+
+        List<BypassRoute> routes = loader.fetchWebsites(List.of(HOSTS_URL));
+
+        assertEquals(List.of(
+                new BypassRoute("1.2.3.4", "chatgpt.com"),
+                new BypassRoute("5.6.7.8", "chatgpt.com")), routes);
+    }
+
+    @Test
+    void doesNotDuplicateBlockDomainFoundWithDifferentBlockIps() throws IOException, InterruptedException {
+        doReturn(response(200, """
+                0.0.0.0 blocked.com
+                127.0.0.1 blocked.com
+                ::1 blocked.com
+                blocked.com
+                another.com
+                """, HOSTS_URL)).when(httpClient).send(any(), any());
+
+        List<String> domains = blockLoader.fetchWebsites(List.of(HOSTS_URL));
+
+        assertEquals(List.of("blocked.com", "another.com"), domains);
     }
 
     @Test

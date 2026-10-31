@@ -9,12 +9,12 @@ import com.novibe.common.util.Log;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.StructuredTaskScope;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * Loads hosts files, so requests need no credentials.
@@ -66,7 +66,7 @@ public abstract class ListLoader<T> extends HttpRequestSender {
                     .forEach(requests::add);
             scope.join();
 
-            return requests.stream()
+            List<T> objects = requests.stream()
                     .map(StructuredTaskScope.Subtask::get)
                     .flatMap(DataParser::splitByEol)
                     .map(String::strip)
@@ -77,9 +77,9 @@ public abstract class ListLoader<T> extends HttpRequestSender {
                     .map(DataParser::parseHostsLine)
                     .filter(Objects::nonNull)
                     .filter(filterRelatedLines())
-                    .distinct()
                     .map(this::toObject)
-                    .collect(Collectors.toCollection(ArrayList::new));
+                    .toList();
+            return new ArrayList<>(new LinkedHashSet<>(objects));
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

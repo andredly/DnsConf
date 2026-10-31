@@ -45,6 +45,8 @@ values here: [Setup credentials](#setup-credentials)
 
 [Set up a DNS donor](#set-up-a-dns-donor)
 
+[Set up health check (optional)](#set-up-health-check-optional)
+
 [Multiple profiles setup](#multiple-profiles-setup)
 
 [GitHub Actions setup](#github-actions-setup)
@@ -178,6 +180,23 @@ Thus, the new IPs will be used for the further redirect rules upload process.
 
 ---
 
+## Set up health check (optional)
+
+For **NextDNS**, redirect IPs can be checked against a public status page. Set **environment variable**
+`HEALTH_CHECK_URL`, for example:
+
+    https://status.dns.geohide.ru/ru/index.json
+
+When `HEALTH_CHECK_URL` is set, the script keeps the current IP of a domain while its status is not `downtime`.
+A current IP with `downtime` is replaced by the first IP from the sources whose status is not `downtime`.
+If every candidate is down, the current rewrite is kept and a warning is logged.
+
+If the status page is unavailable or returns an unknown status, the script treats the IP as `UNKNOWN` and keeps the
+current setting. If `HEALTH_CHECK_URL` is not set, the old behavior is used: the first IP from the sources wins.
+This option affects **NextDNS** only.
+
+---
+
 ## Multiple profiles setup
 
 ### Restrictions
@@ -223,6 +242,9 @@ data: lists and rules used to set up blocks.
 For `REDIRECT`:
 
 + Existing domain will be updated if redirect IP has changed
++ If `HEALTH_CHECK_URL` is set, a live current IP is kept even when another IP comes first in the sources
++ If `HEALTH_CHECK_URL` is set, a current IP with `downtime` is replaced by the first live IP from the sources
++ If all candidate IPs are down, the existing rewrite is kept
 + If new domains are provided, they will be added
 + The rest redirect settings are kept untouched
 
@@ -245,9 +267,10 @@ Previously generated data is removed **ONLY** when both `BLOCK` and `REDIRECT` s
 2) Go _Settings_ => _Environments_
 3) Create _New environment_ with name `DNS`
 4) Provide `AUTH_SECRET` and `CLIENT_ID` to **Environment secrets**
-5) Provide `DNS`,`REDIRECT`, `BLOCK` and `EXCLUDE_REDIRECT` to **Environment variables**
+5) Provide `DNS`,`REDIRECT`, `BLOCK`, `EXCLUDE_REDIRECT` and, optionally, `HEALTH_CHECK_URL` to
+   **Environment variables**
 
-+ The action will be executed every day at **01:30 UTC**. To set another time, change cron at
++ The action will be executed every hour. To set another schedule, change cron at
   `.github/workflows/github_action.yml`
 + You can run the action manually via `Run workflow` button: switch to _Actions_ tab and choose workflow named **DNS
   Block&Redirect Configurer cron task**

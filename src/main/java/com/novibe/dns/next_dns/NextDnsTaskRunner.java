@@ -2,17 +2,23 @@ package com.novibe.dns.next_dns;
 
 import com.novibe.common.DnsTaskRunner;
 import com.novibe.common.base_structures.BypassRoute;
+import com.novibe.common.health.HealthStatus;
+import com.novibe.common.health.ServerHealthService;
 import com.novibe.common.util.DonorDnsUtils;
 import com.novibe.common.util.EnvParser;
 import com.novibe.common.util.Log;
 import com.novibe.dns.next_dns.http.dto.request.CreateRewriteDto;
+import com.novibe.dns.next_dns.http.dto.response.rewrite.RewriteDto;
 import com.novibe.dns.next_dns.service.NextDnsDenyService;
 import com.novibe.dns.next_dns.service.NextDnsRewriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static com.novibe.common.config.EnvironmentVariables.BLOCK;
 import static com.novibe.common.config.EnvironmentVariables.REDIRECT;
@@ -24,6 +30,7 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
 
     private final NextDnsRewriteService nextDnsRewriteService;
     private final NextDnsDenyService nextDnsDenyService;
+    private final ServerHealthService serverHealthService;
 
     @Override
     public void greetingMessage() {
@@ -63,9 +70,23 @@ public class NextDnsTaskRunner extends DnsTaskRunner {
                 DonorDnsUtils.replaceIPs(overrides, dnsProfile);
             }
 
+            Log.step("Fetch existing rewrites");
+            List<RewriteDto> existingRewrites = nextDnsRewriteService.getExistingRewrites();
+
+            Log.step("Check health of redirect IPs");
+            Set<String> ipsToCheck = new LinkedHashSet<>();
+            overrides.forEach(route -> ipsToCheck.add(route.ip()));
+            existingRewrites.stream()
+                    .map(RewriteDto::content)
+                    .filter(Objects::nonNull)
+                    .forEach(ipsToCheck::add);
+            Map<String, HealthStatus> healthStatuses = serverHealthService.check(ipsToCheck);
+
             Log.step("Prepare rewrites");
-            Map<String, CreateRewriteDto> requests = nextDnsRewriteService.buildNewRewrites(overrides);
-            List<CreateRewriteDto> createRewriteDtos = nextDnsRewriteService.cleanupOutdatedAndExcluded(requests);
+            Map<String, CreateRewriteDto> requests = nextDnsRewriteService.buildNewRewrites(
+                    overrides, existingRewrites, healthStatuses, serverHealthService.isEnabled());
+            List<CreateRewriteDto> createRewriteDtos = nextDnsRewriteService.cleanupOutdatedAndExcluded(
+                    requests, existingRewrites);
 
             Log.step("Save rewrites");
             nextDnsRewriteService.saveRewrites(createRewriteDtos);

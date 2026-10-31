@@ -20,6 +20,8 @@ public class EnvironmentVariables {
 
     public static final String DONOR_DNS = System.getenv("DONOR_DNS");
 
+    public static final String HEALTH_CHECK_URL = System.getenv("HEALTH_CHECK_URL");
+
     private static String extractMandatoryVariable(String key) {
         String env = System.getenv(key);
         if (isNull(env) || env.isBlank()) {
